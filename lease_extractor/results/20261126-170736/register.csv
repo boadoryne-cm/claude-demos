@@ -1,0 +1,2 @@
+lease_file,landlord,tenant,premises,permitted_use,commencement_date,term_months,expiry_date,annual_rent,rent_review_type,fixed_review_percent,number_of_options,option_term_months,security_type,security_amount,outgoings_percent,break_clause,break_notice_months,needs_review
+L07-ironbark-strength.md,Hollis Family Pty Ltd,Ironbark Strength Pty Ltd,"The building and land at 7 Hollis Court, North Geelong VIC 3215",Gymnasium and strength training facility,2025-08-01,60,2029-07-31,96000.0,cpi,,1,60,bank_guarantee,26400.0,100.0,False,,expiry_date; option_term_months; term_months
