@@ -1,0 +1,498 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Claude Demos</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  --anthracite:#1B1B1F; --desk:#232328; --sand:#E7E3DD; --paper:#F3F0EB; --rule:#CFC8BE;
+  --cognac:#8A4E2A; --cognac-lift:#d0956a; --coral:#083B3A; --rouge:#5B0D18;
+  --muted:#5e5850; --hl:rgba(208,149,106,.22); --hl-on:#e2b48f;
+  --display:"Bricolage Grotesque",system-ui,sans-serif; --ui:"IBM Plex Sans",system-ui,sans-serif;
+  --doc:"Source Serif 4",Georgia,serif; --mono:"IBM Plex Mono",ui-monospace,monospace;
+}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%}
+body{background:var(--sand);color:var(--anthracite);font:15px/1.5 var(--ui);-webkit-font-smoothing:antialiased}
+button,select,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--cognac);outline-offset:2px}
+
+/* top bar */
+.bar{display:flex;align-items:baseline;gap:28px;padding:14px 28px;background:var(--anthracite);color:var(--sand)}
+.bar .who{font-family:var(--display);font-weight:700;font-size:17px;letter-spacing:-.01em;white-space:nowrap}
+.bar .who span{color:var(--cognac-lift);font-weight:500}
+.tabs{display:flex;gap:22px}
+.tab{background:none;border:0;padding:4px 0;color:#a9a39a;cursor:pointer;border-bottom:2px solid transparent;font-weight:500}
+.tab[aria-selected=true]{color:var(--sand);border-bottom-color:var(--cognac-lift)}
+.meter{margin-left:auto;font:12.5px var(--mono);color:#a9a39a;white-space:nowrap}
+
+/* two panes: the work on sand, the source document on the desk */
+.view{display:none;height:calc(100% - 52px)}
+.view.on{display:grid;grid-template-columns:minmax(380px,44%) 1fr}
+.work{overflow:auto;padding:30px 34px 60px}
+.desk{background:var(--desk);overflow:auto;padding:30px 34px 60px;position:relative}
+
+h1{font-family:var(--display);font-weight:700;font-size:28px;line-height:1.1;letter-spacing:-.02em;margin:0 0 6px}
+.lede{color:var(--muted);margin:0 0 22px;max-width:52ch}
+.label{font-size:12.5px;font-weight:600;color:var(--muted);margin:0 0 6px;display:block}
+
+textarea{width:100%;min-height:76px;resize:vertical;padding:12px 14px;background:var(--paper);border:1px solid var(--rule);border-radius:3px;line-height:1.45}
+select{padding:9px 10px;background:var(--paper);border:1px solid var(--rule);border-radius:3px;max-width:100%}
+.row{display:flex;flex-wrap:wrap;align-items:center;gap:10px 16px;margin:12px 0 0}
+.go{background:var(--cognac);color:var(--sand);border:0;border-radius:3px;padding:10px 18px;font-weight:600;cursor:pointer}
+.go:hover{background:#7a4424}
+.go:disabled{opacity:.55;cursor:progress}
+.quiet{background:none;border:0;padding:0;color:var(--cognac);font-weight:500;cursor:pointer;text-decoration:underline;text-underline-offset:3px}
+.quiet:disabled{color:#a49b90;cursor:default;text-decoration:none}
+.hint{font-size:12.5px;color:var(--muted)}
+
+.samples{margin:0;padding:0;list-style:none;border-top:1px solid var(--rule)}
+.samples li{border-bottom:1px solid var(--rule)}
+.samples button{display:block;width:100%;text-align:left;background:none;border:0;padding:9px 0;cursor:pointer;color:var(--anthracite)}
+.samples button:hover{color:var(--cognac)}
+
+/* answer */
+.result{margin-top:26px}
+.outcome{font-family:var(--display);font-weight:500;font-size:13px;letter-spacing:.02em;color:var(--muted);margin:0 0 8px}
+.outcome b{font-weight:700;color:var(--anthracite)}
+.reply{font-size:17.5px;line-height:1.55;margin:0 0 14px;max-width:60ch;white-space:pre-wrap}
+.note{border-left:3px solid var(--cognac);padding:2px 0 2px 12px;margin:0 0 18px;color:#3b3732;max-width:60ch}
+.sources{margin:0;padding:0;list-style:none}
+.sources li{padding:10px 0;border-top:1px solid var(--rule);cursor:pointer}
+.sources li:last-child{border-bottom:1px solid var(--rule)}
+.sources li[aria-current=true] .src-id{color:var(--cognac)}
+.src-id{font:500 12.5px var(--mono)}
+.src-q{font-family:var(--doc);font-style:italic;color:#3b3732;display:block;margin:2px 0}
+.ok{color:var(--coral);font-weight:600;font-size:12.5px}
+.bad{color:var(--rouge);font-weight:600;font-size:12.5px}
+.meta{font:12px var(--mono);color:var(--muted);margin-top:16px}
+.error{color:var(--rouge);font-weight:500;margin-top:20px}
+.wait{margin-top:26px;color:var(--muted)}
+.wait b{font-family:var(--mono);font-weight:500;color:var(--anthracite)}
+
+/* register */
+.summary{font-family:var(--display);font-size:19px;font-weight:500;margin:26px 0 4px;letter-spacing:-.01em}
+.summary .bad,.summary .ok{font-size:inherit;font-weight:700}
+table{border-collapse:collapse;width:100%;margin-top:12px;font-size:14px}
+th{text-align:left;font-size:12px;font-weight:600;color:var(--muted);padding:6px 8px 6px 0;border-bottom:1px solid var(--anthracite)}
+td{padding:8px 8px 8px 0;border-bottom:1px solid var(--rule);vertical-align:top}
+tr.f{cursor:pointer}
+tr.f:hover td{background:rgba(255,255,255,.35)}
+tr.f[aria-current=true] td{background:rgba(208,149,106,.18)}
+td.k{color:var(--muted);width:34%}
+td.v{font-weight:500}
+td.c{font:12px var(--mono);color:var(--muted);white-space:nowrap;text-align:right}
+.flag{display:block;font-weight:400;font-size:12.8px;margin-top:3px;line-height:1.4}
+.flag.rule{color:var(--rouge)}
+.flag.claude{color:#3b3732}
+.flag em{font-style:normal;font-weight:600}
+.keymiss{color:var(--rouge);font-size:12px;font-weight:600;margin-left:6px}
+.general{margin-top:18px}
+
+/* the paper */
+.paper{background:var(--paper);color:#26231f;max-width:720px;margin:0 auto;padding:44px 52px 56px;font:16px/1.62 var(--doc);box-shadow:0 1px 0 rgba(0,0,0,.3),0 18px 40px rgba(0,0,0,.35)}
+.paper .t{font:600 23px/1.25 var(--doc);margin:0 0 6px}
+.paper .h{font:600 16.5px/1.3 var(--doc);margin:22px 0 6px}
+.paper p{margin:0 0 9px}
+.paper .fine{font-style:italic;font-size:13.5px;color:#6d665d}
+.paper .li{padding-left:18px;position:relative}
+.paper .li::before{content:"–";position:absolute;left:2px}
+.paper .tr{display:grid;grid-template-columns:44px 30% 1fr;gap:10px;padding:5px 0;border-bottom:1px solid #ddd6cc;font-size:14.5px;line-height:1.45}
+.paper .tr.th{font-weight:600;border-bottom-color:#26231f}
+.paper hr{border:0;border-top:1px solid #ddd6cc;margin:20px 0}
+.paper strong{font-weight:600}
+mark{background:var(--hl);color:inherit;border-radius:1px;padding:0 1px;transition:background .25s}
+mark.on{background:var(--hl-on);box-shadow:0 0 0 2px var(--hl-on);border-bottom:2px solid var(--cognac)}
+.deskcap{color:#a9a39a;font-size:12.5px;max-width:720px;margin:0 auto 12px;display:flex;justify-content:space-between;gap:12px}
+.deskcap b{color:var(--sand);font-weight:500}
+.index{max-width:720px;margin:0 auto;list-style:none;padding:0}
+.index button{display:block;width:100%;text-align:left;background:none;border:0;border-bottom:1px solid #3a3a40;padding:11px 0;color:var(--sand);cursor:pointer;font-family:var(--doc);font-size:16px}
+.index button span{font:12px var(--mono);color:var(--cognac-lift);margin-right:12px}
+.index button:hover{color:var(--cognac-lift)}
+
+footer.proof{margin-top:40px;padding-top:14px;border-top:1px solid var(--rule);font-size:12.8px;color:var(--muted);max-width:60ch}
+footer.proof a{color:var(--cognac)}
+
+@media (max-width:900px){
+  .view.on{display:block;height:auto}
+  .bar{flex-wrap:wrap;gap:10px 22px;padding:12px 16px}
+  .meter{margin-left:0;width:100%}
+  .work,.desk{padding:22px 16px 40px}
+  .paper{padding:26px 20px 32px;font-size:15px}
+  .paper .tr{grid-template-columns:30px 1fr;}
+  .paper .tr > :last-child{grid-column:2}
+  td.c{white-space:normal;font-size:11px}
+  h1{font-size:24px}
+}
+@media (prefers-reduced-motion:reduce){mark{transition:none}}
+</style>
+</head>
+<body>
+<header class="bar">
+  <div class="who">Ryne Boado <span>· Claude demos</span></div>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" aria-selected="true" data-view="assist">Member help assistant</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="lease">Lease register</button>
+  </nav>
+  <div class="meter" id="meter"></div>
+</header>
+
+<!-- Member help assistant -->
+<main class="view on" id="assist">
+  <section class="work">
+    <h1>Ask Ridgeline's help assistant</h1>
+    <p class="lede">Ridgeline is a made-up climbing gym. The assistant answers only from its 10 policies, quotes the words it relied on, and passes account, payment and injury matters to the membership team.</p>
+
+    <label class="label" for="q">Member's question</label>
+    <textarea id="q" placeholder="For example: can I freeze my membership while I travel?"></textarea>
+    <div class="row">
+      <button class="go" id="ask">Ask Claude</button>
+      <button class="quiet" id="askSaved" disabled>Show the answer from the tested run</button>
+      <label class="hint">Instructions
+        <select id="ver" aria-label="Instructions version">
+          <option value="v2">final version</option>
+          <option value="v1">first draft</option>
+        </select>
+      </label>
+    </div>
+
+    <div id="answer" aria-live="polite"></div>
+    <span class="label" style="margin-top:30px">Try one of these</span>
+    <ul class="samples" id="samples" aria-label="Sample questions"></ul>
+
+    <footer class="proof">Tested on 31 questions, 3 runs per version: the final instructions passed every check 99% of the time, against 89% for the first draft. <a href="/case-studies/member-help-assistant.pdf" target="_blank">Read the case study</a>.</footer>
+  </section>
+  <section class="desk" id="policyDesk" aria-label="Policy document"></section>
+</main>
+
+<!-- Lease register -->
+<main class="view" id="lease">
+  <section class="work">
+    <h1>Fill a lease register from the lease</h1>
+    <p class="lede">Claude reads a commercial lease and fills 17 register fields, each with the clause and exact words it came from. Rule checks then flag anything a person should look at.</p>
+
+    <label class="label" for="pick">Sample lease (all fictional)</label>
+    <select id="pick"></select>
+    <p class="hint" id="trap"></p>
+    <div class="row">
+      <button class="go" id="read">Read this lease with Claude</button>
+      <button class="quiet" id="readSaved">Show the tested run</button>
+      <span class="hint">A live read takes about 10–20 seconds.</span>
+    </div>
+    <div id="register" aria-live="polite"></div>
+
+    <footer class="proof">Across 8 sample leases, Claude got 136 of 136 fields right in two runs. Planting mistakes in its output, the checks caught 70 of 74. <a href="/case-studies/lease-extractor.pdf" target="_blank">Read the case study</a>.</footer>
+  </section>
+  <section class="desk" id="leaseDesk" aria-label="Lease document"></section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+let DATA = null;
+
+/* ---------- documents: parse light markdown, keep exact text offsets for highlighting ---------- */
+function parseInline(text, cls) {
+  const parts = [];
+  text.split(/(\*\*[^*]+\*\*)/).forEach(seg => {
+    if (!seg) return;
+    if (seg.startsWith("**") && seg.endsWith("**")) parts.push({text: seg.slice(2, -2), cls: "b"});
+    else parts.push({text: seg, cls});
+  });
+  return parts;
+}
+function parseDoc(md) {
+  const blocks = [];
+  for (const raw of md.split("\n")) {
+    const line = raw.trimEnd();
+    if (!line.trim()) continue;
+    if (/^\|[-| ]+\|$/.test(line)) continue;
+    if (line.startsWith("|")) {
+      const cells = line.slice(1, -1).split("|").map(c => c.trim());
+      const parts = [];
+      cells.forEach((c, i) => { if (i) parts.push({text: " ", cls: "gap"}); parts.push({text: c, cls: "cell"}); });
+      blocks.push({type: blocks.length && blocks[blocks.length-1].type.startsWith("tr") ? "tr" : "tr th", parts});
+    } else if (line.startsWith("## ")) blocks.push({type: "h", parts: parseInline(line.slice(3))});
+    else if (line.startsWith("# ")) blocks.push({type: "t", parts: parseInline(line.slice(2))});
+    else if (line === "---") blocks.push({type: "hr", parts: []});
+    else if (/^_.*_$/.test(line)) blocks.push({type: "fine", parts: [{text: line.slice(1, -1)}]});
+    else if (line.startsWith("- ")) blocks.push({type: "li", parts: parseInline(line.slice(2))});
+    else blocks.push({type: "p", parts: parseInline(line)});
+  }
+  let pos = 0;
+  for (const b of blocks) { for (const p of b.parts) { p.start = pos; pos += p.text.length; } pos += 1; }
+  return {blocks, full: blocks.map(b => b.parts.map(p => p.text).join("")).join("\n")};
+}
+// Find a quote in the document, ignoring punctuation, spacing and case between words.
+function findQuote(full, quote) {
+  const words = (quote || "").match(/[A-Za-z0-9]+/g);
+  if (!words) return null;
+  const re = new RegExp(words.map(w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("[^A-Za-z0-9]+"), "i");
+  const m = re.exec(full);
+  return m ? [m.index, m.index + m[0].length] : null;
+}
+function renderDoc(doc, ranges) {
+  const html = [];
+  for (const b of doc.blocks) {
+    if (b.type === "hr") { html.push("<hr>"); continue; }
+    let inner = "";
+    for (const p of b.parts) {
+      if (p.cls === "gap") continue;
+      const s = p.start, e = p.start + p.text.length;
+      const cuts = new Set([s, e]);
+      for (const r of ranges) { if (r.end > s && r.start < e) { cuts.add(Math.max(r.start, s)); cuts.add(Math.min(r.end, e)); } }
+      const pts = [...cuts].sort((a, b) => a - b);
+      let out = "";
+      for (let i = 0; i < pts.length - 1; i++) {
+        const a = pts[i], z = pts[i+1], txt = esc(p.text.slice(a - s, z - s));
+        const cover = ranges.filter(r => r.start <= a && r.end >= z);
+        if (!cover.length) { out += txt; continue; }
+        const on = cover.some(r => r.on);
+        out += `<mark class="${on ? "on" : ""}" data-keys="${esc(cover.map(r => r.key).join(" "))}">${txt}</mark>`;
+      }
+      if (p.cls === "b") out = `<strong>${out}</strong>`;
+      if (p.cls === "cell") out = `<span>${out}</span>`;
+      inner += out;
+    }
+    const tag = {t: "div", h: "div", tr: "div", "tr th": "div"}[b.type] || "p";
+    const cls = {t: "t", h: "h", fine: "fine", li: "li", tr: "tr", "tr th": "tr th"}[b.type] || "";
+    html.push(`<${tag} class="${cls}">${inner}</${tag}>`);
+  }
+  return html.join("");
+}
+function scrollToMark(desk) {
+  const m = desk.querySelector("mark.on");
+  if (!m) return;
+  const top = m.getBoundingClientRect().top - desk.getBoundingClientRect().top + desk.scrollTop - desk.clientHeight / 3;
+  desk.scrollTo({top, behavior: matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth"});
+}
+
+/* ---------- meter and tabs ---------- */
+function setMeter(m) {
+  if (!m) return;
+  $("#meter").textContent = `Live calls ${m.calls} of ${m.max_calls} · US$${m.usd.toFixed(2)} spent`;
+}
+document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () => {
+  document.querySelectorAll(".tab").forEach(x => x.setAttribute("aria-selected", x === t));
+  document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === t.dataset.view));
+}));
+async function post(url, body) {
+  try {
+    const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
+    return await r.json();
+  } catch (e) { return {error: "Can't reach the demo server. Check it's still running in the terminal."}; }
+}
+function waiting(el, text) {
+  const t0 = Date.now();
+  el.innerHTML = `<p class="wait">${text} <b>0 s</b></p>`;
+  const id = setInterval(() => { const b = el.querySelector(".wait b"); if (b) b.textContent = Math.round((Date.now() - t0) / 1000) + " s"; else clearInterval(id); }, 500);
+  return () => clearInterval(id);
+}
+const fmtCost = c => c < 0.01 ? `${(c * 100).toFixed(2)}¢` : `US$${c.toFixed(3)}`;
+
+/* ---------- member help assistant ---------- */
+const OUTCOME = {answer: ["Answered", "from the policies"], handoff: ["Passed to the membership team", ""], decline: ["Declined", "not something Ridgeline handles"]};
+let policyView = {doc: null, quote: null};
+
+function showPolicyIndex() {
+  const desk = $("#policyDesk");
+  desk.innerHTML = `<div class="deskcap"><span>The policy behind each answer opens here, with the quoted words highlighted.</span></div>
+    <ul class="index">${Object.entries(DATA.policies).map(([id, p]) =>
+      `<li><button data-doc="${id}"><span>${id}</span>${esc(p.title.replace(/^POL-\d+\s*/, ""))}</button></li>`).join("")}</ul>`;
+  desk.querySelectorAll("[data-doc]").forEach(b => b.addEventListener("click", () => showPolicy(b.dataset.doc, null)));
+}
+function showPolicy(id, quote) {
+  const desk = $("#policyDesk"), p = DATA.policies[id], doc = parseDoc(p.text);
+  const hit = quote ? findQuote(doc.full, quote) : null;
+  const ranges = hit ? [{start: hit[0], end: hit[1], key: "q", on: true}] : [];
+  desk.innerHTML = `<div class="deskcap"><span><b>${id}</b> ${hit ? "· quoted words highlighted" : quote ? "· quote not found in this policy" : ""}</span>
+    <button class="quiet" style="color:var(--cognac-lift)" id="allPol">All policies</button></div>
+    <article class="paper">${renderDoc(doc, ranges)}</article>`;
+  $("#allPol").addEventListener("click", showPolicyIndex);
+  desk.scrollTop = 0;
+  requestAnimationFrame(() => scrollToMark(desk));
+}
+function renderAnswer(res) {
+  const el = $("#answer");
+  setMeter(res.meter);
+  if (res.error) { el.innerHTML = `<p class="error">${esc(res.error)}</p>`; return; }
+  const a = res.answer, [head, tail] = OUTCOME[a.action] || [a.action, ""];
+  const src = a.sources.map((s, i) => `<li data-i="${i}" tabindex="0" aria-current="${i === 0}">
+      <span class="src-id">${esc(s.doc_id)}</span> ${esc(s.title.replace(/^POL-\d+\s*/, ""))}
+      <span class="src-q">“${esc(s.quote)}”</span>
+      ${s.found ? `<span class="ok">Quote found word for word in ${esc(s.doc_id)}</span>` : `<span class="bad">Quote not found in ${esc(s.doc_id)}</span>`}</li>`).join("");
+  el.innerHTML = `<div class="result">
+    <p class="outcome"><b>${head}</b>${tail ? " · " + tail : ""}</p>
+    <p class="reply">${esc(a.reply)}</p>
+    ${a.action === "handoff" && a.handoff_reason ? `<p class="note"><strong>Note for the team:</strong> ${esc(a.handoff_reason)}</p>` : ""}
+    ${a.sources.length ? `<span class="label">Policies it relied on</span><ul class="sources">${src}</ul>` : `<p class="hint">No policy cited.</p>`}
+    <p class="meta">${esc(res.model)} · ${res.seconds} s · ${fmtCost(res.cost_usd)} · ${res.saved ? "saved from the tested run" : "live, " + (res.version === "v1" ? "first-draft" : "final") + " instructions"}</p></div>`;
+  el.querySelectorAll(".sources li").forEach(li => {
+    const go = () => { el.querySelectorAll(".sources li").forEach(x => x.setAttribute("aria-current", x === li));
+      const s = a.sources[+li.dataset.i]; showPolicy(s.doc_id, s.quote); };
+    li.addEventListener("click", go); li.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+  });
+  if (a.sources.length) showPolicy(a.sources[0].doc_id, a.sources[0].quote); else showPolicyIndex();
+}
+async function askClaude(saved) {
+  const question = $("#q").value.trim();
+  if (!question) { $("#answer").innerHTML = `<p class="error">Type a question first, or pick one below.</p>`; return; }
+  $("#ask").disabled = true;
+  const stop = saved ? () => {} : waiting($("#answer"), "Claude is reading the policies…");
+  const res = await post("/api/ask", {question, version: $("#ver").value, saved});
+  stop(); $("#ask").disabled = false;
+  renderAnswer(res);
+}
+function syncSaved() {
+  const s = DATA.samples.find(x => x.q === $("#q").value.trim());
+  $("#askSaved").disabled = !(s && s.saved);
+}
+$("#ask").addEventListener("click", () => askClaude(false));
+$("#askSaved").addEventListener("click", () => askClaude(true));
+$("#q").addEventListener("input", syncSaved);
+$("#q").addEventListener("keydown", e => { if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) askClaude(false); });
+
+/* ---------- lease register ---------- */
+const TRAPS = {
+  L01: "Security is written as a formula: 3 months' rent plus GST.",
+  L02: "Rent is stated per month, not per year.",
+  L03: "A later deed of variation extends the term.",
+  L04: "Only a personal guarantee, and the landlord can end it early to redevelop.",
+  L05: "Rent is stated per week.",
+  L06: "Starts with a rent-free period.",
+  L07: "The term and the expiry date contradict each other.",
+  L08: "A special condition changes the rent in the schedule.",
+};
+const FIELDS = [
+  ["landlord", "Landlord"], ["tenant", "Tenant"], ["premises", "Premises"], ["permitted_use", "Permitted use"],
+  ["commencement_date", "Start date"], ["term_months", "Term"], ["expiry_date", "Expiry date"],
+  ["annual_rent", "Annual rent (ex GST)"], ["rent_review_type", "Rent review"], ["fixed_review_percent", "Fixed increase"],
+  ["number_of_options", "Options to renew"], ["option_term_months", "Option term"], ["security_type", "Security"],
+  ["security_amount", "Security amount"], ["outgoings_percent", "Tenant's share of outgoings"],
+  ["break_clause", "Early ending right"], ["break_notice_months", "Notice to end early"],
+];
+const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function fmt(name, v) {
+  if (v === null || v === undefined || v === "") return "Not stated";
+  if (/_date$/.test(name)) { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v); return m ? `${+m[3]} ${MONTHS[+m[2]-1]} ${m[1]}` : v; }
+  if (name === "annual_rent" || name === "security_amount") return "$" + Number(v).toLocaleString("en-AU", {maximumFractionDigits: 2});
+  if (/_months$/.test(name)) return v % 12 === 0 && v >= 12 ? `${v} months (${v/12} year${v === 12 ? "" : "s"})` : `${v} months`;
+  if (/_percent$/.test(name)) return `${v}%`;
+  if (name === "break_clause") return v ? "Yes" : "No";
+  if (name === "rent_review_type") return {fixed: "Fixed increase", cpi: "CPI", market: "Market review", mixed: "Mixed", none: "None"}[v] || v;
+  if (name === "security_type") return {bank_guarantee: "Bank guarantee", cash_bond: "Cash bond", none: "None"}[v] || v;
+  return String(v);
+}
+let leaseState = {id: null, res: null, active: null};
+
+function drawLease() {
+  const {id, res, active} = leaseState, L = DATA.leases[id], doc = parseDoc(L.text);
+  const ranges = [];
+  let found = 0, quoted = 0;
+  if (res && res.fields) {
+    for (const [name] of FIELDS) {
+      const q = res.fields[name]?.quote;
+      if (!q) continue;
+      quoted++;
+      const hit = findQuote(doc.full, q);
+      if (hit) { found++; ranges.push({start: hit[0], end: hit[1], key: name, on: name === active}); }
+    }
+  }
+  const cap = res && res.fields
+    ? `<span><b>${esc(L.file)}</b> · every value's source highlighted (${found} of ${quoted} quotes found). Pick a row to jump to it.</span>`
+    : `<span><b>${esc(L.file)}</b></span>`;
+  $("#leaseDesk").innerHTML = `<div class="deskcap">${cap}</div><article class="paper">${renderDoc(doc, ranges)}</article>`;
+  $("#leaseDesk").querySelectorAll("mark").forEach(m => m.addEventListener("click", () => {
+    const k = m.dataset.keys.split(" ")[0]; selectField(k, false);
+  }));
+}
+function selectField(name, scroll = true) {
+  leaseState.active = name;
+  document.querySelectorAll("tr.f").forEach(tr => tr.setAttribute("aria-current", tr.dataset.f === name));
+  drawLease();
+  if (scroll) requestAnimationFrame(() => scrollToMark($("#leaseDesk")));
+  else document.querySelector(`tr.f[data-f="${name}"]`)?.scrollIntoView({block: "nearest"});
+}
+function renderRegister(res) {
+  const el = $("#register");
+  setMeter(res.meter);
+  if (res.error) { el.innerHTML = `<p class="error">${esc(res.error)}</p>`; return; }
+  leaseState.res = res; leaseState.active = null;
+  const byField = {}, general = [];
+  for (const [f, level, msg] of res.flags) {
+    const claude = msg.startsWith("Claude: ");
+    const item = {claude, level, text: claude ? msg.slice(8) : msg};
+    if (FIELDS.some(([n]) => n === f)) (byField[f] ||= []).push(item); else general.push(item);
+  }
+  const flaggedFields = Object.keys(byField).length;
+  const matches = Object.values(res.key_match).filter(Boolean).length;
+  const seen = {};
+  const rows = FIELDS.map(([name, label]) => {
+    const f = res.fields[name] || {};
+    const flags = (byField[name] || []).map(x => {
+      const kind = x.claude ? "Claude's note:" : "Rule check:", key = kind + x.text;
+      const body = seen[key] ? `same as ${seen[key]} above.` : esc(x.text);
+      seen[key] ||= label;
+      return `<span class="flag ${x.claude ? "claude" : "rule"}"><em>${kind}</em> ${body}</span>`;
+    }).join("");
+    const miss = res.key_match[name] === false ? `<span class="keymiss">differs from answer key</span>` : "";
+    return `<tr class="f" data-f="${name}" tabindex="0"><td class="k">${label}</td>
+      <td class="v">${esc(fmt(name, f.value))}${miss}${flags}</td><td class="c">${esc(f.clause || "")}</td></tr>`;
+  }).join("");
+  el.innerHTML = `
+    <p class="summary">${matches === FIELDS.length ? `<span class="ok">${matches} of ${FIELDS.length}</span>` : `<span class="bad">${matches} of ${FIELDS.length}</span>`} fields match the answer key · ${flaggedFields} to check</p>
+    <p class="hint">The answer key was written with the sample lease. With a real lease there's no key, so the flags are what a person reviews.</p>
+    <table><thead><tr><th>Field</th><th>Value</th><th style="text-align:right">Source</th></tr></thead><tbody>${rows}</tbody></table>
+    ${general.length ? `<div class="general">${general.map(x => `<span class="flag ${x.claude ? "claude" : "rule"}"><em>${x.claude ? "Claude's note:" : "Rule check:"}</em> ${esc(x.text)}</span>`).join("")}</div>` : ""}
+    <p class="meta">${esc(res.model)} · ${res.seconds} s · ${fmtCost(res.cost_usd)} · ${res.saved ? "saved from the tested run" : "live"}</p>`;
+  el.querySelectorAll("tr.f").forEach(tr => {
+    tr.addEventListener("click", () => selectField(tr.dataset.f));
+    tr.addEventListener("keydown", e => { if (e.key === "Enter") selectField(tr.dataset.f); });
+  });
+  drawLease();
+}
+function pickLease(id) {
+  leaseState = {id, res: null, active: null};
+  $("#trap").textContent = "What makes it tricky: " + TRAPS[id];
+  $("#readSaved").disabled = !DATA.leases[id].saved;
+  $("#register").innerHTML = "";
+  drawLease();
+  $("#leaseDesk").scrollTop = 0;
+}
+async function readLease(saved) {
+  $("#read").disabled = true;
+  const stop = saved ? () => {} : waiting($("#register"), "Claude is reading the whole lease…");
+  const res = await post("/api/extract", {lease: leaseState.id, saved});
+  stop(); $("#read").disabled = false;
+  renderRegister(res);
+}
+$("#pick").addEventListener("change", e => pickLease(e.target.value));
+$("#read").addEventListener("click", () => readLease(false));
+$("#readSaved").addEventListener("click", () => readLease(true));
+
+/* ---------- start ---------- */
+fetch("/api/init").then(r => r.json()).then(d => {
+  DATA = d;
+  setMeter(d.meter);
+  $("#samples").innerHTML = d.samples.map(s => `<li><button>${esc(s.q)}</button></li>`).join("");
+  $("#samples").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { $("#q").value = b.textContent; syncSaved(); $("#q").focus(); }));
+  $("#pick").innerHTML = Object.entries(d.leases).map(([id, l]) => `<option value="${id}">${id} · ${esc(l.title.replace(/^[^:]*:\s*/, ""))}</option>`).join("");
+  showPolicyIndex();
+  pickLease("L07");
+  $("#pick").value = "L07";
+  // Shortcuts for demos: #lease=L03 opens that lease's tested run; #ask=2 shows the tested answer to sample 2.
+  const h = new URLSearchParams(location.hash.slice(1));
+  if (h.get("lease") && d.leases[h.get("lease")]) {
+    document.querySelector('.tab[data-view="lease"]').click();
+    $("#pick").value = h.get("lease"); pickLease(h.get("lease")); readLease(true).then(() => h.get("field") && selectField(h.get("field")));
+  } else if (h.get("ask") && d.samples[+h.get("ask") - 1]) {
+    $("#q").value = d.samples[+h.get("ask") - 1].q; syncSaved(); askClaude(true);
+  }
+}).catch(() => { document.body.insertAdjacentHTML("afterbegin", `<p class="error" style="padding:16px">Can't reach the demo server. Start it with: python -m web.server</p>`); });
+</script>
+</body>
+</html>

@@ -29,24 +29,46 @@ outgoings and break rights. Every value comes with its clause and a word-for-wor
 - `evaluate.py` scores against `labels.py` and reports how many wrong values the checks caught.
   It writes `register.csv` (import into Google Sheets) and `review_queue.csv`.
 
+## Demo page (`web/`)
+
+A web page for showing both demos: every answer appears next to the source document with the quoted words highlighted.
+
+```
+python -m web.server        # then open http://localhost:8000
+```
+
+- **Member help assistant:** type a question or pick a sample. "Ask Claude" makes a live call; "Show the answer from the tested run" replays a saved answer for free.
+- **Lease register:** pick a sample lease. "Read this lease with Claude" runs it live (10-20 s); "Show the tested run" is free. Click any row to jump to the words it came from.
+- Live calls are capped at 40 per server start (`DEMO_MAX_CALLS` to change). The top bar shows calls made and money spent.
+- Shortcuts: `/#lease=L07&field=expiry_date` opens a lease's tested run on one field; `/#ask=2` shows the tested answer to sample question 2.
+- In GitHub Codespaces, VS Code offers to open the forwarded port 8000 in the browser. The port stays private to your GitHub login unless you change it.
+
 ## Running it
 
 ```
-cd ~/Documents/claude-demos
-# 1. put your own Anthropic API key in .env (the file is ignored by git)
-# 2. offline tests, no cost:
+# first time only, on a new computer:
+python3 -m venv .venv && .venv/bin/pip install -r requirements.txt
+cp .env.example .env        # then put your own Anthropic API key in .env (ignored by git)
+                            # in Codespaces, add ANTHROPIC_API_KEY as a Codespaces secret instead
+
+# offline tests, no cost:
 .venv/bin/python -m pytest -q
-# 3. real runs:
-.venv/bin/python -m member_assistant.evaluate --prompt v1 --limit 3   # quick check
-.venv/bin/python -m member_assistant.evaluate --prompt v1             # all 31
-.venv/bin/python -m lease_extractor.evaluate
-# ask one question or extract one lease:
-.venv/bin/python -m member_assistant.assistant "Can I freeze my membership?"
+.venv/bin/python -m member_assistant.evaluate --fake oracle
+
+# real runs:
+.venv/bin/python -m member_assistant.evaluate --prompt v2 --limit 3   # quick check
+.venv/bin/python -m member_assistant.evaluate --prompt v2             # all 31
+.venv/bin/python -m member_assistant.compare                          # v1 vs v2 across saved runs
+.venv/bin/python -m lease_extractor.evaluate                          # all 8 leases
+# one question or one lease:
+.venv/bin/python -m member_assistant.assistant --prompt v2 "Can I freeze my membership?"
 .venv/bin/python -m lease_extractor.extract lease_extractor/leases/L07-ironbark-strength.md
 ```
+
+In Codespaces, leave out `.venv/bin/` and run `pip install -r requirements.txt` once.
 
 Results land in each project's `results/` folder with a `report.md`.
 
 Model: Claude Opus 5.5 for the assistant and the extractor, Claude Sonnet 5.5 as the grader.
 Refusal fallbacks are turned on (`fallbacks: "default"`). Expected cost: under $1 for a full
-assistant run, about $1 for all 8 leases.
+assistant run, about 30 cents for all 8 leases.
