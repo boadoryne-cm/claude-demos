@@ -1,6 +1,6 @@
-# Claude demos: member help assistant and lease extractor
+# Claude demos: help assistant, lease extractor and staff agent
 
-Two small, tested demos of Claude doing real work, with the checks that show how well it does it.
+Three small, tested demos of Claude doing real work, with the checks that show how well it does it.
 Everything uses fictional data: a made-up climbing gym and made-up Australian commercial leases.
 
 ## 1. Member help assistant (`member_assistant/`)
@@ -29,9 +29,24 @@ outgoings and break rights. Every value comes with its clause and a word-for-wor
 - `evaluate.py` scores against `labels.py` and reports how many wrong values the checks caught.
   It writes `register.csv` (import into Google Sheets) and `review_queue.csv`.
 
+## 3. Staff back-office agent (`staff_agent/`)
+Picks up the help assistant's hand-offs. Claude chooses its own look-ups in a fictional members
+database, then proposes actions and drafts a reply. Nothing changes until a person approves it.
+
+- `docs/STAFF-01-...md` the membership team's procedures (identity checks, which refunds staff can
+  approve, fee waivers, freezes, injuries). `data.py` builds the SQLite database of 23 members.
+- `tools.py` 7 read-only look-ups (the database is opened read-only) and 7 proposal tools. Code
+  checks every proposal and queues it; `apply()` is the only thing that writes, re-checks the
+  account at approval time, and is only called when a person approves.
+- `tickets.jsonl` 22 hand-off tickets (written by `make_tickets.py`), each with the right member,
+  identity decision, actions with exact amounts and dates, facts the reply must give, and leaks to avoid.
+- `evaluate.py` scores six checks: member, identity decision, actions, quotes, no leaked details
+  (code) and the reply against the account records (Claude Sonnet 5.5 grader).
+  `--regrade DIR` re-scores stored outputs; `CHANGELOG.md` logs every change to the test.
+
 ## Demo page (`web/`)
 
-A web page for showing both demos: every answer appears next to the source document with the quoted words highlighted.
+A web page for showing all three demos: every answer appears next to the source document with the quoted words highlighted.
 
 ```
 python -m web.server        # then open http://localhost:8000
@@ -39,8 +54,9 @@ python -m web.server        # then open http://localhost:8000
 
 - **Member help assistant:** type a question or pick a sample. "Ask Claude" makes a live call; "Show the answer from the tested run" replays a saved answer for free.
 - **Lease register:** pick a sample lease. "Read this lease with Claude" runs it live (10-20 s); "Show the tested run" is free. Click any row to jump to the words it came from.
+- **Staff agent:** pick a ticket. "Run the agent" works it live (15-40 s); "Show the tested run" is free. Click a step to see what the agent looked up; Approve applies the proposal to a demo copy of the database, rebuilt each time the server starts.
 - Live calls are capped at 40 per server start (`DEMO_MAX_CALLS` to change). The top bar shows calls made and money spent.
-- Shortcuts: `/#lease=L07&field=expiry_date` opens a lease's tested run on one field; `/#ask=2` shows the tested answer to sample question 2.
+- Shortcuts: `/#lease=L07&field=expiry_date` opens a lease's tested run on one field; `/#ask=2` shows the tested answer to sample question 2; `/#ticket=T08&step=2` opens a ticket's tested run on one step.
 - In GitHub Codespaces, VS Code offers to open the forwarded port 8000 in the browser. The port stays private to your GitHub login unless you change it.
 
 ## Running it
@@ -54,21 +70,24 @@ cp .env.example .env        # then put your own Anthropic API key in .env (ignor
 # offline tests, no cost:
 .venv/bin/python -m pytest -q
 .venv/bin/python -m member_assistant.evaluate --fake oracle
+.venv/bin/python -m staff_agent.make_tickets && .venv/bin/python -m staff_agent.data   # tickets and database
 
 # real runs:
 .venv/bin/python -m member_assistant.evaluate --prompt v2 --limit 3   # quick check
 .venv/bin/python -m member_assistant.evaluate --prompt v2             # all 31
 .venv/bin/python -m member_assistant.compare                          # v1 vs v2 across saved runs
 .venv/bin/python -m lease_extractor.evaluate                          # all 8 leases
+.venv/bin/python -m staff_agent.evaluate --prompt v2                  # all 22 tickets
 # one question or one lease:
 .venv/bin/python -m member_assistant.assistant --prompt v2 "Can I freeze my membership?"
 .venv/bin/python -m lease_extractor.extract lease_extractor/leases/L07-ironbark-strength.md
+.venv/bin/python -m staff_agent.agent T08 --prompt v2
 ```
 
 In Codespaces, leave out `.venv/bin/` and run `pip install -r requirements.txt` once.
 
 Results land in each project's `results/` folder with a `report.md`.
 
-Model: Claude Opus 5.5 for the assistant and the extractor, Claude Sonnet 5.5 as the grader.
+Model: Claude Opus 5.5 for the assistant, the extractor and the agent, Claude Sonnet 5.5 as the grader.
 Refusal fallbacks are turned on (`fallbacks: "default"`). Expected cost: under $1 for a full
-assistant run, about 30 cents for all 8 leases.
+assistant run, about 30 cents for all 8 leases, about $1 for all 22 agent tickets with grading.

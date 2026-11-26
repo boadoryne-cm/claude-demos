@@ -117,6 +117,32 @@ mark.on{background:var(--hl-on);box-shadow:0 0 0 2px var(--hl-on);border-bottom:
 footer.proof{margin-top:40px;padding-top:14px;border-top:1px solid var(--rule);font-size:12.8px;color:var(--muted);max-width:60ch}
 footer.proof a{color:var(--cognac)}
 
+
+/* staff agent */
+.ticket{background:var(--paper);border:1px solid var(--rule);border-radius:3px;padding:14px 16px;margin:14px 0 0}
+.ticket .hd{font:12px var(--mono);color:var(--muted);display:flex;flex-wrap:wrap;gap:4px 16px;margin-bottom:8px}
+.ticket .msg{font-size:15.5px;margin:0}
+.ticket .an{font-size:12.8px;color:var(--muted);margin:8px 0 0;border-top:1px solid var(--rule);padding-top:7px}
+.steps{list-style:none;margin:6px 0 0;padding:0;counter-reset:s}
+.steps li{position:relative;padding:7px 0 7px 30px;border-bottom:1px solid var(--rule);font-size:14px;cursor:pointer;counter-increment:s}
+.steps li::before{content:counter(s);position:absolute;left:0;top:8px;font:500 11.5px var(--mono);color:var(--muted);width:20px;text-align:right}
+.steps li[aria-current=true]{background:rgba(255,255,255,.35)}
+.steps li .res{display:block;color:var(--muted);font-size:12.8px}
+.steps li.prop{color:var(--cognac);font-weight:500}
+.steps li.err .res{color:var(--rouge)}
+.acts{list-style:none;margin:6px 0 0;padding:0}
+.acts li{border:1px solid var(--rule);border-left:3px solid var(--cognac);background:var(--paper);padding:10px 12px;margin:0 0 8px;border-radius:2px}
+.acts li.esc{border-left-color:var(--rouge)}
+.acts .why{display:block;font-size:12.8px;color:var(--muted);margin:3px 0 8px}
+.acts .btns{display:flex;gap:14px;align-items:center;flex-wrap:wrap}
+.acts .small{padding:6px 12px;font-size:13px}
+.acts .state{font-size:13px;font-weight:600}
+.draft{width:100%;min-height:210px;font:15px/1.55 var(--ui)}
+.checks{font-size:12.8px;color:var(--muted);margin-top:6px}
+.paper table.kv{font:14px var(--ui);margin:0}
+.paper table.kv td,.paper table.kv th{padding:5px 8px 5px 0;border-bottom:1px solid #ddd6cc;vertical-align:top}
+.paper table.kv th{font-size:11.5px;color:#6d665d;border-bottom:1px solid #26231f}
+.paper .mono{font:12.5px var(--mono)}
 @media (max-width:900px){
   .view.on{display:block;height:auto}
   .bar{flex-wrap:wrap;gap:10px 22px;padding:12px 16px}
@@ -144,6 +170,7 @@ body.static .static-only{display:revert}
   <nav class="tabs" role="tablist">
     <button class="tab" role="tab" aria-selected="true" data-view="assist">Member help assistant</button>
     <button class="tab" role="tab" aria-selected="false" data-view="lease">Lease register</button>
+    <button class="tab" role="tab" aria-selected="false" data-view="agent">Staff agent</button>
   </nav>
   <div class="meter live-only" id="meter"></div>
   <div class="meter static-only"><a href="https://github.com/boadoryne-cm/claude-demos">Code on GitHub</a> &nbsp;·&nbsp; <a href="/">Back to portfolio</a></div>
@@ -198,6 +225,30 @@ body.static .static-only{display:revert}
     <footer class="proof">Across 8 sample leases, Claude got 136 of 136 fields right in two runs. Planting mistakes in its output, the checks caught 70 of 74. <a href="case-studies/lease-extractor.pdf" target="_blank">Read the case study</a>.</footer>
   </section>
   <section class="desk" id="leaseDesk" aria-label="Lease document"></section>
+</main>
+
+
+<!-- Staff agent -->
+<main class="view" id="agent">
+  <section class="work">
+    <h1>Work a hand-off ticket</h1>
+    <p class="lede">When the help assistant passes a member to staff, this agent picks up the ticket. It decides what to look up in the members database, checks the policies and staff procedures, then proposes actions and drafts a reply. Nothing changes until a staff member approves it.</p>
+
+    <label class="label" for="tpick">Hand-off ticket (fictional members)</label>
+    <select id="tpick"></select>
+    <p class="hint" id="ttrap"></p>
+    <div class="ticket" id="tcard"></div>
+    <p class="replay static-only">This is a replay of the tested run for each ticket, step by step. Approving here only marks the proposal; in the live version it updates the demo database. The live version runs from the <a href="https://github.com/boadoryne-cm/claude-demos">code on GitHub</a>.</p>
+    <div class="row live-only">
+      <button class="go" id="runAgent">Run the agent</button>
+      <button class="quiet" id="runSaved">Show the tested run</button>
+      <span class="hint">A live run takes about 15–40 seconds.</span>
+    </div>
+    <div id="agentOut" aria-live="polite"></div>
+
+    <footer class="proof">Tested on 22 hand-off tickets with traps such as an already-refunded charge, a freeze over the yearly limit, a request from the wrong email address and a message pretending to be a manager. With the final instructions it found the right member, made the right identity call and proposed the right actions on all 22. The draft reply passed on 15 of 22, up from 6 for the first draft. <a href="case-studies/staff-agent.pdf" target="_blank">Read the case study</a>.</footer>
+  </section>
+  <section class="desk" id="agentDesk" aria-label="What the agent looked at"></section>
 </main>
 
 <script>
@@ -296,6 +347,11 @@ async function post(url, body) {
   if (STATIC) {
     if (url === "/api/ask") return STATIC.answers[body.question] || {error: "No saved answer for this question."};
     if (url === "/api/extract") return STATIC.leases[body.lease] || {error: "No saved run for this lease."};
+    if (url === "/api/agent") return STATIC.agent[body.ticket] || {error: "No saved run for this ticket."};
+    if (url === "/api/approve") {
+      const a = (STATIC.agent[body.ticket]?.actions || []).find(x => x.id === body.action);
+      return {done: a ? `In the live version this would now: ${a.summary.charAt(0).toLowerCase() + a.summary.slice(1)}.` : ""};
+    }
   }
   try {
     const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
@@ -490,6 +546,128 @@ $("#pick").addEventListener("change", e => { pickLease(e.target.value); if (STAT
 $("#read").addEventListener("click", () => readLease(false));
 $("#readSaved").addEventListener("click", () => readLease(true));
 
+
+/* ---------- staff agent ---------- */
+const shortTitle = t => t.startsWith("Log an incident") ? t.split(": ")[0] : t;
+const n = (a, w) => { const k = a?.length ?? 0; return `${k} ${w}${k === 1 ? "" : "s"}`; };
+const STEP = {
+  find_member: (i, r) => [`Searched members for “${i.query}”`, r.matches?.length ? r.matches.map(m => `${m.member_id} ${m.first_name} ${m.last_name}`).join(", ") : "No member found"],
+  get_member: (i, r) => [`Opened ${i.member_id}'s profile`, r.plan ? `${r.first_name} ${r.last_name} · ${r.plan} · ${r.status}${r.email ? " · " + r.email : ""}` : ""],
+  get_payments: (i, r) => [`Read ${i.member_id}'s payments`, `${n(r.payments, "payment")} in the last 12 months`],
+  get_bookings: (i, r) => [`Read ${i.member_id}'s class bookings`, n(r.bookings, "booking")],
+  get_freezes: (i, r) => [`Read ${i.member_id}'s freezes`, n(r.freezes, "freeze")],
+  get_checkins: (i, r) => [`Read ${i.member_id}'s check-ins`, n(r.checkins, "check-in")],
+  get_account_history: (i, r) => [`Read ${i.member_id}'s account notes`, n(r.history, "note")],
+};
+let agentState = {id: null, res: null};
+
+function kvTable(obj) {
+  return `<table class="kv">${Object.entries(obj).filter(([, v]) => !Array.isArray(v)).map(([k, v]) =>
+    `<tr><th>${esc(k.replace(/_/g, " "))}</th><td>${esc(v ?? "—")}</td></tr>`).join("")}</table>`;
+}
+function listTable(rows) {
+  if (!rows.length) return `<p class="fine">Nothing on record.</p>`;
+  if (typeof rows[0] !== "object") return `<table class="kv">${rows.map(r => `<tr><td class="mono">${esc(r)}</td></tr>`).join("")}</table>`;
+  const cols = Object.keys(rows[0]);
+  return `<table class="kv"><tr>${cols.map(c => `<th>${esc(c.replace(/_/g, " "))}</th>`).join("")}</tr>${rows.map(r =>
+    `<tr>${cols.map(c => `<td class="${/id$|date|at$|start/.test(c) ? "mono" : ""}">${esc(r[c] ?? "")}</td>`).join("")}</tr>`).join("")}</table>`;
+}
+function showStepResult(step) {
+  const desk = $("#agentDesk"), r = step.result;
+  let body;
+  if (r.error) body = `<p><strong>The code check rejected this call:</strong> ${esc(r.error)}</p><p class="fine">The agent sees this message and can correct itself.</p>`;
+  else if (r.queued) body = `<p><strong>Queued for approval as ${esc(r.queued)}.</strong> ${esc(r.summary)}</p><p class="fine">${esc(r.status)}</p>`;
+  else {
+    const list = step.tool === "get_member" ? null : Object.entries(r).find(([, v]) => Array.isArray(v));
+    body = list ? listTable(list[1]) + (r.note ? `<p class="fine">${esc(r.note)}</p>` : "") : kvTable(r);
+    if (r.family_members?.length) body += `<div class="h">Family members on this account</div>` + listTable(r.family_members);
+  }
+  desk.innerHTML = `<div class="deskcap"><span><b>${esc(step.tool)}</b> · ${esc(JSON.stringify(step.input))}</span></div>
+    <article class="paper"><div class="t">What the agent saw</div>${body}</article>`;
+  desk.scrollTop = 0;
+}
+function showStaffDoc(id, quote) {
+  const docs = {...DATA.policies, ...DATA.staff_docs}, p = docs[id], desk = $("#agentDesk");
+  if (!p) return;
+  const doc = parseDoc(p.text), hit = quote ? findQuote(doc.full, quote) : null;
+  desk.innerHTML = `<div class="deskcap"><span><b>${esc(id)}</b> ${hit ? "· quoted words highlighted" : quote ? "· quote not found in this document" : ""}</span></div>
+    <article class="paper">${renderDoc(doc, hit ? [{start: hit[0], end: hit[1], key: "q", on: true}] : [])}</article>`;
+  desk.scrollTop = 0;
+  requestAnimationFrame(() => scrollToMark(desk));
+}
+function drawTicket(id) {
+  const t = DATA.tickets[id];
+  $("#ttrap").textContent = "What makes it tricky: " + t.why;
+  $("#tcard").innerHTML = `<div class="hd"><span>${esc(id)}</span><span>From ${esc(t.from)}</span><span>${esc(t.received)}</span>${t.attachments.length ? `<span>Attached: ${esc(t.attachments.join(", "))}</span>` : ""}</div>
+    <p class="msg">${esc(t.message)}</p><p class="an">Help assistant's note: ${esc(t.note)}</p>`;
+  $("#runSaved").disabled = !t.saved;
+  $("#agentOut").innerHTML = "";
+  $("#agentDesk").innerHTML = `<div class="deskcap"><span>Each record the agent reads opens here. Pick a step to see exactly what it saw.</span></div>`;
+}
+const CHECK_NAMES = {member_ok: "right member", verified_ok: "right identity decision", actions_ok: "right actions", quotes_ok: "quotes found", no_leak: "no leaked details", reply_ok: "reply correct"};
+function renderAgent(res) {
+  const el = $("#agentOut");
+  setMeter(res.meter);
+  if (res.error) { el.innerHTML = `<p class="error">${esc(res.error)}</p>`; return; }
+  agentState.res = res;
+  const f = res.final;
+  const steps = res.steps.map((s, i) => {
+    let head, sub, cls = "";
+    if (s.is_error) { head = `Tried ${s.tool.replace(/_/g, " ")}`; sub = "Rejected by the code check: " + (s.result.error || ""); cls = "err"; }
+    else if (s.result.queued) { head = s.tool === "escalate_to_manager" ? "Escalated to a manager" : "Proposed: " + shortTitle(s.result.summary); sub = s.tool === "escalate_to_manager" ? s.input.reason : "Queued for approval. Nothing changed yet."; cls = "prop"; }
+    else { [head, sub] = (STEP[s.tool] || ((x) => [s.tool, ""]))(s.input, s.result); }
+    return `<li data-i="${i}" tabindex="0" class="${cls}">${esc(head)}<span class="res">${esc(sub)}</span></li>`;
+  }).join("");
+  const acts = res.actions.map(a => `<li class="${a.type === "escalate" ? "esc" : ""}" data-a="${esc(a.id)}">
+      <strong>${esc(a.type === "escalate" ? "Escalate to a manager" : shortTitle(a.summary))}</strong><span class="why">${esc(a.type === "incident_report" ? a.description : (a.reason || ""))}</span>
+      <span class="btns"><button class="go small" data-do="approve">Approve</button><button class="quiet" data-do="reject">Reject</button></span></li>`).join("");
+  const basis = (f.policy_basis || []).map((b, i) => `<li data-b="${i}" tabindex="0"><span class="src-id">${esc(b.doc_id)}</span>
+      <span class="src-q">“${esc(b.quote)}”</span>${b.found ? `<span class="ok">Quote found word for word</span>` : `<span class="bad">Quote not found in ${esc(b.doc_id)}</span>`}</li>`).join("");
+  const c = res.checks || {};
+  const checkLine = res.saved && "passed" in c
+    ? (c.passed ? `In testing, this run passed all 6 checks.` : `In testing, this run failed: ${Object.entries(CHECK_NAMES).filter(([k]) => c[k] === false).map(([, v]) => v).join(", ")}.`)
+    : "";
+  el.innerHTML = `<div class="result">
+    <p class="outcome"><b>${f.member_id ? esc(f.member_id) : "No member found"}</b> · ${f.sender_verified ? "sender verified" : "sender not verified, nothing shared"}</p>
+    <p class="note"><strong>For staff:</strong> ${esc(f.summary)}</p>
+    <span class="label">What the agent did (${res.steps.length} steps)</span>
+    <ol class="steps">${steps}</ol>
+    <span class="label" style="margin-top:22px">Waiting for approval</span>
+    ${acts ? `<ul class="acts">${acts}</ul>` : `<p class="hint">No changes proposed. The reply explains why.</p>`}
+    <label class="label" for="draft" style="margin-top:22px">Draft reply to the member (editable)</label>
+    <textarea id="draft" class="draft">${esc(f.draft_reply)}</textarea>
+    ${basis ? `<span class="label" style="margin-top:18px">Policy it relied on</span><ul class="sources">${basis}</ul>` : ""}
+    <p class="meta">${esc(res.model)} · ${res.turns} turns · ${res.seconds} s · ${fmtCost(res.cost_usd)} · ${res.saved ? "saved from the tested run" : "live"}</p>
+    ${checkLine ? `<p class="checks">${checkLine}</p>` : ""}</div>`;
+  el.querySelectorAll(".steps li").forEach(li => {
+    const go = () => { el.querySelectorAll(".steps li").forEach(x => x.setAttribute("aria-current", x === li)); showStepResult(res.steps[+li.dataset.i]); };
+    li.addEventListener("click", go); li.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+  });
+  el.querySelectorAll(".sources li").forEach(li => {
+    const go = () => { const b = f.policy_basis[+li.dataset.b]; showStaffDoc(b.doc_id, b.quote); };
+    li.addEventListener("click", go); li.addEventListener("keydown", e => { if (e.key === "Enter") go(); });
+  });
+  el.querySelectorAll(".acts li").forEach(li => li.querySelectorAll("button").forEach(b => b.addEventListener("click", async () => {
+    const btns = li.querySelector(".btns");
+    if (b.dataset.do === "reject") { btns.innerHTML = `<span class="state" style="color:var(--muted)">Rejected. Nothing changed.</span>`; return; }
+    btns.innerHTML = `<span class="state">Applying…</span>`;
+    const r = await post("/api/approve", {ticket: res.ticket, action: li.dataset.a});
+    btns.innerHTML = r.error ? `<span class="state bad">${esc(r.error)}</span>` : `<span class="state ok">Approved. ${esc(r.done)}</span>`;
+  })));
+  if (f.policy_basis?.length) showStaffDoc(f.policy_basis[0].doc_id, f.policy_basis[0].quote);
+}
+async function runAgent(saved) {
+  $("#runAgent").disabled = true;
+  const stop = saved ? () => {} : waiting($("#agentOut"), "The agent is working the ticket…");
+  const res = await post("/api/agent", {ticket: agentState.id, saved});
+  stop(); $("#runAgent").disabled = false;
+  renderAgent(res);
+}
+function pickTicket(id) { agentState = {id, res: null}; drawTicket(id); }
+$("#tpick").addEventListener("change", e => { pickTicket(e.target.value); if (STATIC) runAgent(true); });
+$("#runAgent").addEventListener("click", () => runAgent(false));
+$("#runSaved").addEventListener("click", () => runAgent(true));
+
 /* ---------- start ---------- */
 (STATIC ? Promise.resolve(STATIC.init) : fetch("/api/init").then(r => r.json())).then(d => {
   DATA = d;
@@ -501,12 +679,18 @@ $("#readSaved").addEventListener("click", () => readLease(true));
   showPolicyIndex();
   pickLease("L07");
   $("#pick").value = "L07";
-  if (STATIC && !location.hash) readLease(true);
+  $("#tpick").innerHTML = Object.entries(d.tickets).map(([id, t]) => `<option value="${id}">${id} · ${esc(t.message.length > 70 ? t.message.slice(0, 68) + "…" : t.message)}</option>`).join("");
+  pickTicket("T08"); $("#tpick").value = "T08";
+  if (STATIC && !location.hash) { readLease(true); runAgent(true); }
   // Shortcuts for demos: #lease=L03 opens that lease's tested run; #ask=2 shows the tested answer to sample 2.
   const h = new URLSearchParams(location.hash.slice(1));
   if (h.get("lease") && d.leases[h.get("lease")]) {
     document.querySelector('.tab[data-view="lease"]').click();
     $("#pick").value = h.get("lease"); pickLease(h.get("lease")); readLease(true).then(() => h.get("field") && selectField(h.get("field")));
+  } else if (h.get("ticket") && d.tickets[h.get("ticket")]) {
+    document.querySelector('.tab[data-view="agent"]').click();
+    $("#tpick").value = h.get("ticket"); pickTicket(h.get("ticket")); runAgent(true).then(() => {
+      const i = +(h.get("step") || 0); if (i) document.querySelector(`.steps li[data-i="${i - 1}"]`)?.click(); });
   } else if (h.get("ask") && d.samples[+h.get("ask") - 1]) {
     $("#q").value = d.samples[+h.get("ask") - 1].q; syncSaved(); askClaude(true);
   }

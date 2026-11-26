@@ -24,7 +24,9 @@ def main() -> None:
     init["samples"] = [s for s in init["samples"] if s["saved"]]
     answers = {s["q"]: server.api_ask({"question": s["q"], "saved": True}) for s in init["samples"]}
     leases = {lid: server.api_extract({"lease": lid, "saved": True}) for lid in init["leases"]}
-    data = json.dumps({"init": init, "answers": answers, "leases": leases}, ensure_ascii=False).replace("</", "<\\/")
+    init["tickets"] = {k: t for k, t in init["tickets"].items() if t["saved"]}
+    agent = {tid: server.api_agent({"ticket": tid, "saved": True}) for tid in init["tickets"]}
+    data = json.dumps({"init": init, "answers": answers, "leases": leases, "agent": agent}, ensure_ascii=False).replace("</", "<\\/")
     html = (HERE / "index.html").read_text().replace("<script>\n", f"<script>window.STATIC = {data};</script>\n<script>\n", 1)
     (out / "index.html").write_text(html)
     for pdf in (server.ROOT / "case-studies").glob("*.pdf"):

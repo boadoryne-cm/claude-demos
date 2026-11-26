@@ -22,6 +22,10 @@ from lease_extractor.checks import run_checks
 from lease_extractor.evaluate import score
 from lease_extractor.extract import extract
 from member_assistant.assistant import DOCS, ask
+from staff_agent import agent as staff
+from staff_agent.data import TODAY
+from staff_agent.data import build as build_db
+from staff_agent.tools import ToolError, apply as apply_action
 
 ROOT = Path(__file__).resolve().parent.parent
 HERE = Path(__file__).resolve().parent
@@ -65,6 +69,23 @@ def _saved_leases() -> dict[str, dict]:
 
 SAVED_ANSWERS = _saved_answers()
 SAVED_LEASES = _saved_leases()
+
+
+def _saved_agent_runs() -> tuple[dict[str, dict], str]:
+    """The newest graded run of the highest prompt version, keyed by ticket ID."""
+    folder = ROOT / "staff_agent" / "results"
+    runs = [d for d in folder.iterdir() if d.is_dir() and "fake" not in d.name and (d / "results.jsonl").exists()] if folder.exists() else []
+    if not runs:
+        return {}, ""
+    d = max(runs, key=lambda d: (d.name.split("-")[0], "regraded" in d.name, d.name))
+    rows = [json.loads(l) for l in (d / "results.jsonl").read_text().splitlines()]
+    return {r["id"]: r for r in rows}, d.name
+
+
+SAVED_AGENT, SAVED_AGENT_RUN = _saved_agent_runs()
+TICKETS = staff.load_tickets()
+DEMO_DB = ROOT / "staff_agent" / "web_demo.db"  # approvals on the page change this copy only
+_pending: dict[str, dict] = {}  # action key -> action, for approving live or saved proposals
 SAMPLE_QUESTIONS = [
     "I'm going overseas for 5 weeks. Can I freeze my monthly membership and what does it cost?",
     "I rolled my ankle on the bouldering wall yesterday and didn't tell anyone. What should I do?",
@@ -152,6 +173,54 @@ def api_extract(body: dict) -> dict:
             "meter": _meter()}
 
 
+def _agent_payload(row: dict, saved: bool) -> dict:
+    for a in row["actions"]:
+        _pending[f"{row['id']}:{a['id']}"] = a
+    checks = {k: row[k] for k in ("member_ok", "verified_ok", "actions_ok", "quotes_ok", "no_leak", "reply_ok", "passed") if k in row}
+    final = row["final"] or {}
+    basis = [{**b, "found": quote_in(b["quote"], staff.DOCS.get(b["doc_id"], ""))} for b in final.get("policy_basis", [])]
+    return {"ticket": row["id"], "steps": row["steps"], "actions": row["actions"], "final": {**final, "policy_basis": basis},
+            "turns": row["turns"], "cost_usd": row["cost_usd"], "seconds": row["seconds"], "model": ", ".join(row.get("models", [])),
+            "saved": saved, "checks": checks, "run": SAVED_AGENT_RUN if saved else "", "meter": _meter()}
+
+
+def api_agent(body: dict) -> dict:
+    tid = body.get("ticket")
+    if tid not in TICKETS:
+        return {"error": "Pick one of the sample tickets."}
+    if body.get("saved"):
+        r = SAVED_AGENT.get(tid)
+        return _agent_payload(r, True) if r else {"error": "There's no saved run for this ticket. Run the agent instead."}
+    if not _take_call():
+        return {"error": f"This page has used its {MAX_CALLS} live runs for this session. Restart the server to allow more, or use the tested runs."}
+    if not DEMO_DB.exists():
+        build_db(DEMO_DB)
+    run = staff.run_ticket(TICKETS[tid], staff_prompt(), DEMO_DB)
+    _add_cost(run.cost_usd)
+    if run.error:
+        return {"error": f"The agent stopped without an answer ({run.error}). Try again.", "meter": _meter()}
+    row = {"id": tid, "steps": run.steps, "actions": run.actions, "final": run.final, "turns": run.turns,
+           "cost_usd": run.cost_usd, "seconds": round(run.seconds, 1), "models": sorted(set(run.models))}
+    return _agent_payload(row, False)
+
+
+def staff_prompt() -> str:
+    return max(p.stem for p in (ROOT / "staff_agent" / "prompts").glob("v*.md"))
+
+
+def api_approve(body: dict) -> dict:
+    with _lock:
+        a = _pending.pop(f"{body.get('ticket')}:{body.get('action')}", None)
+    if not a:
+        return {"error": "That proposal isn't waiting for approval any more."}
+    if not DEMO_DB.exists():
+        build_db(DEMO_DB)
+    try:
+        return {"done": apply_action(DEMO_DB, a, TODAY) + " (demo database)"}
+    except ToolError as e:
+        return {"error": str(e)}
+
+
 def api_init() -> dict:
     return {
         "policies": {k: {"title": DOC_TITLES[k], "text": v} for k, v in DOCS.items()},
@@ -159,6 +228,9 @@ def api_init() -> dict:
                        "title": p.read_text().splitlines()[0].lstrip("# ").strip(),
                        "saved": k in SAVED_LEASES} for k, p in LEASES.items()},
         "samples": [{"q": q, "saved": q in SAVED_ANSWERS} for q in SAMPLE_QUESTIONS],
+        "staff_docs": {k: {"title": v.splitlines()[0].lstrip("# ").strip(), "text": v} for k, v in staff.DOCS.items() if k.startswith("STAFF")},
+        "tickets": {k: {"from": t["from"], "received": t["received"], "attachments": t["attachments"], "note": t["assistant_note"],
+                        "message": t["message"], "why": t["why"], "saved": k in SAVED_AGENT} for k, t in TICKETS.items()},
         "meter": _meter(),
     }
 
@@ -198,6 +270,10 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(api_ask(body))
             elif self.path == "/api/extract":
                 self._json(api_extract(body))
+            elif self.path == "/api/agent":
+                self._json(api_agent(body))
+            elif self.path == "/api/approve":
+                self._json(api_approve(body))
             else:
                 self._json({"error": "not found"}, 404)
         except SystemExit as e:  # raised by common.claude when the key is missing or rejected
@@ -210,6 +286,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    build_db(DEMO_DB)  # fresh demo database each start
     port = int(os.environ.get("PORT", "8000"))
     srv = ThreadingHTTPServer(("127.0.0.1" if not os.environ.get("CODESPACES") else "0.0.0.0", port), Handler)
     print(f"Demo page running at http://localhost:{port}  (Ctrl+C to stop; live calls capped at {MAX_CALLS})")

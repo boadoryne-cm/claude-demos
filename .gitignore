@@ -4,3 +4,6 @@ __pycache__/
 .pytest_cache/
 .DS_Store
 web/static/
+staff_agent/web_demo.db
+staff_agent/ridgeline.db
+*-fake-*/
