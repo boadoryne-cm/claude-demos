@@ -129,6 +129,13 @@ footer.proof a{color:var(--cognac)}
   h1{font-size:24px}
 }
 @media (prefers-reduced-motion:reduce){mark{transition:none}}
+.static-only{display:none}
+body.static .live-only{display:none}
+body.static .static-only{display:revert}
+.bar a{color:#a9a39a;text-decoration:none;font-size:13px}
+.bar a:hover{color:var(--sand)}
+.replay{font-size:13px;color:var(--muted);margin:12px 0 0;max-width:56ch}
+.replay a{color:var(--cognac)}
 </style>
 </head>
 <body>
@@ -138,7 +145,8 @@ footer.proof a{color:var(--cognac)}
     <button class="tab" role="tab" aria-selected="true" data-view="assist">Member help assistant</button>
     <button class="tab" role="tab" aria-selected="false" data-view="lease">Lease register</button>
   </nav>
-  <div class="meter" id="meter"></div>
+  <div class="meter live-only" id="meter"></div>
+  <div class="meter static-only"><a href="https://github.com/boadoryne-cm/claude-demos">Code on GitHub</a> &nbsp;·&nbsp; <a href="/">Back to portfolio</a></div>
 </header>
 
 <!-- Member help assistant -->
@@ -149,7 +157,8 @@ footer.proof a{color:var(--cognac)}
 
     <label class="label" for="q">Member's question</label>
     <textarea id="q" placeholder="For example: can I freeze my membership while I travel?"></textarea>
-    <div class="row">
+    <p class="replay static-only">This is a replay of the tested run: pick a question below to see the answer Claude gave. The live version, where you can type your own question, runs from the <a href="https://github.com/boadoryne-cm/claude-demos">code on GitHub</a>.</p>
+    <div class="row live-only">
       <button class="go" id="ask">Ask Claude</button>
       <button class="quiet" id="askSaved" disabled>Show the answer from the tested run</button>
       <label class="hint">Instructions
@@ -164,7 +173,7 @@ footer.proof a{color:var(--cognac)}
     <span class="label" style="margin-top:30px">Try one of these</span>
     <ul class="samples" id="samples" aria-label="Sample questions"></ul>
 
-    <footer class="proof">Tested on 31 questions, 3 runs per version: the final instructions passed every check 99% of the time, against 89% for the first draft. <a href="/case-studies/member-help-assistant.pdf" target="_blank">Read the case study</a>.</footer>
+    <footer class="proof">Tested on 31 questions, 3 runs per version: the final instructions passed every check 99% of the time, against 89% for the first draft. <a href="case-studies/member-help-assistant.pdf" target="_blank">Read the case study</a>.</footer>
   </section>
   <section class="desk" id="policyDesk" aria-label="Policy document"></section>
 </main>
@@ -178,14 +187,15 @@ footer.proof a{color:var(--cognac)}
     <label class="label" for="pick">Sample lease (all fictional)</label>
     <select id="pick"></select>
     <p class="hint" id="trap"></p>
-    <div class="row">
+    <p class="replay static-only">This is a replay of the tested run for each lease. The live version runs from the <a href="https://github.com/boadoryne-cm/claude-demos">code on GitHub</a>.</p>
+    <div class="row live-only">
       <button class="go" id="read">Read this lease with Claude</button>
       <button class="quiet" id="readSaved">Show the tested run</button>
       <span class="hint">A live read takes about 10–20 seconds.</span>
     </div>
     <div id="register" aria-live="polite"></div>
 
-    <footer class="proof">Across 8 sample leases, Claude got 136 of 136 fields right in two runs. Planting mistakes in its output, the checks caught 70 of 74. <a href="/case-studies/lease-extractor.pdf" target="_blank">Read the case study</a>.</footer>
+    <footer class="proof">Across 8 sample leases, Claude got 136 of 136 fields right in two runs. Planting mistakes in its output, the checks caught 70 of 74. <a href="case-studies/lease-extractor.pdf" target="_blank">Read the case study</a>.</footer>
   </section>
   <section class="desk" id="leaseDesk" aria-label="Lease document"></section>
 </main>
@@ -194,6 +204,8 @@ footer.proof a{color:var(--cognac)}
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 let DATA = null;
+const STATIC = window.STATIC || null;  // set by export_static.py: saved runs only, no server, no API calls
+if (STATIC) document.body.classList.add("static");
 
 /* ---------- documents: parse light markdown, keep exact text offsets for highlighting ---------- */
 function parseInline(text, cls) {
@@ -281,6 +293,10 @@ document.querySelectorAll(".tab").forEach(t => t.addEventListener("click", () =>
   document.querySelectorAll(".view").forEach(v => v.classList.toggle("on", v.id === t.dataset.view));
 }));
 async function post(url, body) {
+  if (STATIC) {
+    if (url === "/api/ask") return STATIC.answers[body.question] || {error: "No saved answer for this question."};
+    if (url === "/api/extract") return STATIC.leases[body.lease] || {error: "No saved run for this lease."};
+  }
   try {
     const r = await fetch(url, {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify(body)});
     return await r.json();
@@ -470,20 +486,22 @@ async function readLease(saved) {
   stop(); $("#read").disabled = false;
   renderRegister(res);
 }
-$("#pick").addEventListener("change", e => pickLease(e.target.value));
+$("#pick").addEventListener("change", e => { pickLease(e.target.value); if (STATIC) readLease(true); });
 $("#read").addEventListener("click", () => readLease(false));
 $("#readSaved").addEventListener("click", () => readLease(true));
 
 /* ---------- start ---------- */
-fetch("/api/init").then(r => r.json()).then(d => {
+(STATIC ? Promise.resolve(STATIC.init) : fetch("/api/init").then(r => r.json())).then(d => {
   DATA = d;
   setMeter(d.meter);
   $("#samples").innerHTML = d.samples.map(s => `<li><button>${esc(s.q)}</button></li>`).join("");
-  $("#samples").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { $("#q").value = b.textContent; syncSaved(); $("#q").focus(); }));
+  $("#samples").querySelectorAll("button").forEach(b => b.addEventListener("click", () => { $("#q").value = b.textContent; syncSaved(); if (STATIC) askClaude(true); else $("#q").focus(); }));
+  if (STATIC) { $("#q").readOnly = true; $("#q").placeholder = "Pick a question below."; }
   $("#pick").innerHTML = Object.entries(d.leases).map(([id, l]) => `<option value="${id}">${id} · ${esc(l.title.replace(/^[^:]*:\s*/, ""))}</option>`).join("");
   showPolicyIndex();
   pickLease("L07");
   $("#pick").value = "L07";
+  if (STATIC && !location.hash) readLease(true);
   // Shortcuts for demos: #lease=L03 opens that lease's tested run; #ask=2 shows the tested answer to sample 2.
   const h = new URLSearchParams(location.hash.slice(1));
   if (h.get("lease") && d.leases[h.get("lease")]) {
